@@ -51,6 +51,41 @@ type Message = {
 };
 type Tab = "home" | "members" | "messages" | "profile";
 
+type InstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
+
+function validateSouthAfricanId(value: string) {
+  const id = value.replace(/\D/g, "");
+  if (!/^\d{13}$/.test(id)) return false;
+  const year = Number(id.slice(0, 2));
+  const month = Number(id.slice(2, 4));
+  const day = Number(id.slice(4, 6));
+  const currentYear = new Date().getFullYear() % 100;
+  const fullYear = year <= currentYear ? 2000 + year : 1900 + year;
+  const date = new Date(fullYear, month - 1, day);
+  if (date.getFullYear() !== fullYear || date.getMonth() !== month - 1 || date.getDate() !== day) return false;
+  if (Number(id[10]) > 1) return false;
+  let sum = 0;
+  for (let index = 0; index < 12; index += 1) {
+    let digit = Number(id[index]);
+    if (index % 2 === 1) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+  }
+  return (10 - (sum % 10)) % 10 === Number(id[12]);
+}
+
+function normalizeSouthAfricanPhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (/^0[6-8]\d{8}$/.test(digits)) return `+27${digits.slice(1)}`;
+  if (/^27[6-8]\d{8}$/.test(digits)) return `+${digits}`;
+  return null;
+}
+
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -82,6 +117,7 @@ function AuthScreen() {
   const [loading, setLoading] = useState(false);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [saId, setSaId] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -89,15 +125,34 @@ function AuthScreen() {
     event.preventDefault();
     setLoading(true);
     if (mode === "signup") {
-      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName, phone } } });
+      const normalizedPhone = normalizeSouthAfricanPhone(phone);
+      const cleanId = saId.replace(/\D/g, "");
+      if (!normalizedPhone) {
+        toast.error("Enter a valid South African mobile number, for example 082 123 4567.");
+        setLoading(false);
+        return;
+      }
+      if (!validateSouthAfricanId(cleanId)) {
+        toast.error("Enter a valid 13-digit South African ID number.");
+        setLoading(false);
+        return;
+      }
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: {
+          emailRedirectTo: window.location.origin,
+          data: { full_name: fullName.trim(), phone: normalizedPhone, sa_id_confirmed: true },
+        },
+      });
       if (!error && data.user) {
-        const { error: profileError } = await supabase.from("profiles").upsert({ id: data.user.id, full_name: fullName, phone });
+        const { error: profileError } = await supabase.from("profiles").upsert({ id: data.user.id, full_name: fullName.trim(), phone: normalizedPhone });
         if (profileError && data.session) toast.error(profileError.message);
       }
       if (error) toast.error(error.message);
-      else if (!data.session) toast.success("Check your email to confirm your account.");
+      else if (!data.session) toast.success("Confirmation sent. Open the link in your email to activate Andzisa.", { duration: 8000 });
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
       if (error) toast.error(error.message);
     }
     setLoading(false);
@@ -132,7 +187,7 @@ function AuthScreen() {
           </div>
 
           <form onSubmit={submit} className="space-y-4">
-            {mode === "signup" && <><Field label="Full name"><Input required value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your full name" /></Field><Field label="Phone number"><Input required type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Your phone number" /></Field></>}
+            {mode === "signup" && <><Field label="Full name"><Input required maxLength={100} value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your full name" autoComplete="name" /></Field><Field label="South African mobile number"><Input required type="tel" inputMode="tel" maxLength={16} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="082 123 4567" autoComplete="tel" /></Field><Field label="South African ID number"><Input required inputMode="numeric" pattern="[0-9 ]{13,16}" maxLength={16} value={saId} onChange={(e) => setSaId(e.target.value.replace(/[^0-9 ]/g, ""))} placeholder="13-digit ID number" autoComplete="off" /><span className="mt-1.5 block text-xs text-muted-foreground">Used only to confirm the ID format. Your full ID is not stored.</span></Field></>}
             <Field label="Email address"><Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></Field>
             <Field label="Password"><Input required minLength={8} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" /></Field>
             <Button className="h-12 w-full text-base" disabled={loading}>{loading && <LoaderCircle className="animate-spin" />}{mode === "signup" ? "Create account" : "Sign in"}</Button>
@@ -141,6 +196,7 @@ function AuthScreen() {
           <Button variant="outline" className="h-12 w-full" onClick={googleSignIn} disabled={loading}><span className="font-black text-google">G</span> Continue with Google</Button>
           <button className="mt-6 w-full text-sm font-semibold text-primary" onClick={() => setMode(mode === "signup" ? "signin" : "signup")}>{mode === "signup" ? "Already a member? Sign in" : "New to Andzisa? Join now"}</button>
           <p className="mt-8 flex items-center justify-center gap-2 text-center text-xs text-muted-foreground"><LockKeyhole className="h-3.5 w-3.5" /> Your details stay protected.</p>
+           <InstallTip />
         </div>
       </section>
       <Toaster />
@@ -264,9 +320,18 @@ function MemberDetail({ me, person, score, ratingCount, onBack, onMessage, onCha
 }
 
 function ProfileSetup({ user, onDone }: { user: User; onDone: () => void }) {
-  const [name, setName] = useState(String(user.user_metadata?.["full_name"] ?? "")); const [phone, setPhone] = useState(String(user.user_metadata?.["phone"] ?? ""));
-  async function submit(e: FormEvent) { e.preventDefault(); const { error } = await supabase.from("profiles").insert({ id: user.id, full_name: name, phone }); if (error) toast.error(error.message); else onDone(); }
-  return <main className="flex min-h-screen items-center justify-center bg-background p-5"><form onSubmit={submit} className="w-full max-w-md"><div className="mb-8 text-primary"><Brand /></div><h1 className="text-3xl font-black">Complete your profile</h1><p className="mt-2 text-muted-foreground">Help your community know who they are connecting with.</p><div className="mt-7 space-y-4"><Field label="Full name"><Input required value={name} onChange={(e) => setName(e.target.value)} /></Field><Field label="Phone number"><Input required value={phone} onChange={(e) => setPhone(e.target.value)} /></Field><Button className="h-12 w-full">Continue</Button></div></form><Toaster /></main>;
+  const [name, setName] = useState(String(user.user_metadata?.["full_name"] ?? "")); const [phone, setPhone] = useState(String(user.user_metadata?.["phone"] ?? "")); const [saId, setSaId] = useState("");
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const normalizedPhone = normalizeSouthAfricanPhone(phone);
+    if (!normalizedPhone) { toast.error("Enter a valid South African mobile number."); return; }
+    if (!validateSouthAfricanId(saId)) { toast.error("Enter a valid 13-digit South African ID number."); return; }
+    const { error: metadataError } = await supabase.auth.updateUser({ data: { full_name: name.trim(), phone: normalizedPhone, sa_id_confirmed: true } });
+    if (metadataError) { toast.error(metadataError.message); return; }
+    const { error } = await supabase.from("profiles").insert({ id: user.id, full_name: name.trim(), phone: normalizedPhone });
+    if (error) toast.error(error.message); else onDone();
+  }
+  return <main className="flex min-h-screen items-center justify-center bg-background p-5"><form onSubmit={submit} className="w-full max-w-md"><div className="mb-8 text-primary"><Brand /></div><h1 className="text-3xl font-black">Complete your profile</h1><p className="mt-2 text-muted-foreground">Confirm your South African details to join the community.</p><div className="mt-7 space-y-4"><Field label="Full name"><Input required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} /></Field><Field label="South African mobile number"><Input required type="tel" inputMode="tel" maxLength={16} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="082 123 4567" /></Field><Field label="South African ID number"><Input required inputMode="numeric" maxLength={16} value={saId} onChange={(e) => setSaId(e.target.value.replace(/[^0-9 ]/g, ""))} placeholder="13-digit ID number" /><span className="mt-1.5 block text-xs text-muted-foreground">Your full ID is checked but not stored.</span></Field><Button className="h-12 w-full">Continue</Button></div></form><Toaster /></main>;
 }
 
 function ProfileView({ me, score, ratingCount, onChanged }: { me: Profile; score: number; ratingCount: number; onChanged: () => void }) {
@@ -275,6 +340,36 @@ function ProfileView({ me, score, ratingCount, onChanged }: { me: Profile; score
   return <div className="mx-auto max-w-2xl"><p className="text-xs font-bold uppercase text-accent-foreground">Your account</p><h1 className="mt-1 text-3xl font-black">Profile</h1><div className="mt-7 flex items-center gap-5"><div className="flex h-20 w-20 items-center justify-center rounded-full bg-secondary text-3xl font-black text-primary">{me.full_name.charAt(0)}</div><div><div className="flex items-center gap-2"><h2 className="text-xl font-black">{me.full_name}</h2><BadgeCheck className="h-5 w-5 text-trust" /></div><p className="mt-1 flex items-center gap-1 text-sm"><Star className="h-4 w-4 fill-gold text-gold" /> {score ? score.toFixed(1) : "No rating yet"} · {ratingCount} ratings</p></div></div><div className="mt-8 space-y-4"><Field label="Area"><Input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Your town or neighbourhood" /></Field><Field label="About you"><Textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="A short introduction for the community" maxLength={280} /></Field><Button onClick={save}>Save profile</Button></div><div className="mt-10 border-t pt-6"><Button variant="outline" onClick={() => supabase.auth.signOut()}><LogOut /> Sign out</Button></div><InstallTip /></div>;
 }
 
-function InstallTip() { return <div className="mt-8 flex gap-4 rounded-lg bg-secondary p-5"><Download className="h-6 w-6 shrink-0 text-primary" /><div><p className="font-bold">Install Andzisa on your phone</p><p className="mt-1 text-sm leading-6 text-muted-foreground">Open your browser menu and choose “Add to Home Screen” or “Install app.” It’s free.</p></div></div>; }
+function InstallTip() {
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  const [isIos, setIsIos] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(false);
+
+  useEffect(() => {
+    setIsIos(/iphone|ipad|ipod/i.test(window.navigator.userAgent));
+    setIsInstalled(window.matchMedia("(display-mode: standalone)").matches);
+    const capturePrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as InstallPromptEvent);
+    };
+    const installed = () => { setIsInstalled(true); setInstallPrompt(null); };
+    window.addEventListener("beforeinstallprompt", capturePrompt);
+    window.addEventListener("appinstalled", installed);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", capturePrompt);
+      window.removeEventListener("appinstalled", installed);
+    };
+  }, []);
+
+  async function install() {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+    if (choice.outcome === "accepted") setInstallPrompt(null);
+  }
+
+  if (isInstalled) return <div className="mt-8 flex gap-4 rounded-lg bg-secondary p-5"><BadgeCheck className="h-6 w-6 shrink-0 text-trust" /><div><p className="font-bold">Andzisa is installed</p><p className="mt-1 text-sm text-muted-foreground">Open it from your phone’s home screen.</p></div></div>;
+  return <div className="mt-8 flex gap-4 rounded-lg bg-secondary p-5"><Download className="h-6 w-6 shrink-0 text-primary" /><div className="flex-1"><p className="font-bold">Install Andzisa on your phone</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{isIos ? "In Safari, tap Share, then Add to Home Screen." : installPrompt ? "Install the free app on this device." : "Open your browser menu and choose “Install app” or “Add to Home Screen.”"}</p>{installPrompt && <Button className="mt-3" size="sm" onClick={install}><Download /> Install app</Button>}</div></div>;
+}
 
 function Empty({ icon: Icon, title, text, action }: { icon: typeof Mail; title: string; text: string; action?: React.ReactNode }) { return <div className="mt-10 rounded-lg border border-dashed p-10 text-center"><Icon className="mx-auto h-8 w-8 text-muted-foreground" /><p className="mt-4 font-bold">{title}</p><p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">{text}</p>{action && <div className="mt-5">{action}</div>}</div>; }

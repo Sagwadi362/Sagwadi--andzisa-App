@@ -4,7 +4,7 @@
 - [x] Add free iPhone and Android home-screen installation
 - [x] Restore the original yellow “A” logo and remove the generated face image
 - [x] Verify phone and desktop presentation
-- [ ] Validate South African ID numbers during account creation without storing the full ID
-- [ ] Make email confirmation clearer and return users to Andzisa
-- [ ] Add a direct install button where supported, with iPhone instructions as fallback
-- [ ] Verify registration validation and installation on phone and desktop
+- [x] Validate South African ID numbers during account creation without storing the full ID
+- [x] Make email confirmation clearer and return users to Andzisa
+- [x] Add a direct install button where supported, with iPhone instructions as fallback
+- [x] Verify registration validation and installation on phone and desktop
