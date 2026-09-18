@@ -8,7 +8,7 @@ import {
   ChevronRight,
   Flag,
   Home,
-  Install,
+  Download,
   LoaderCircle,
   LockKeyhole,
   LogOut,
@@ -245,7 +245,8 @@ function MemberRow({ person, score, onClick }: { person: Profile; score: number;
 }
 
 function MessagesView({ conversations, messages, userId, openChat, members }: { conversations: Profile[]; messages: Message[]; userId: string; openChat: (p: Profile) => void; members: Profile[] }) {
-  return <div><p className="text-xs font-bold uppercase text-accent-foreground">Private</p><h1 className="mt-1 text-3xl font-black">Messages</h1>{conversations.length ? <div className="mt-6 divide-y rounded-lg border bg-card">{conversations.map((p) => { const latest = messages.filter((m) => [m.sender_id,m.recipient_id].includes(userId) && [m.sender_id,m.recipient_id].includes(p.id)).at(-1); return <button key={p.id} onClick={() => openChat(p)} className="flex w-full items-center gap-4 p-4 text-left"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary font-black text-primary">{p.full_name.charAt(0)}</div><div className="min-w-0 flex-1"><p className="font-bold">{p.full_name}</p><p className="truncate text-sm text-muted-foreground">{latest?.body}</p></div><ChevronRight className="text-muted-foreground" /></button>; })}</div> : <Empty icon={MessageCircle} title="No conversations yet" text="Choose a community member to start a private conversation." action={members[0] ? <Button onClick={() => openChat(members[0])}>Start a message</Button> : undefined} />}</div>;
+  const firstMember = members.at(0);
+  return <div><p className="text-xs font-bold uppercase text-accent-foreground">Private</p><h1 className="mt-1 text-3xl font-black">Messages</h1>{conversations.length ? <div className="mt-6 divide-y rounded-lg border bg-card">{conversations.map((p) => { const latest = messages.filter((m) => [m.sender_id,m.recipient_id].includes(userId) && [m.sender_id,m.recipient_id].includes(p.id)).at(-1); return <button key={p.id} onClick={() => openChat(p)} className="flex w-full items-center gap-4 p-4 text-left"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary font-black text-primary">{p.full_name.charAt(0)}</div><div className="min-w-0 flex-1"><p className="font-bold">{p.full_name}</p><p className="truncate text-sm text-muted-foreground">{latest?.body}</p></div><ChevronRight className="text-muted-foreground" /></button>; })}</div> : <Empty icon={MessageCircle} title="No conversations yet" text="Choose a community member to start a private conversation." action={firstMember ? <Button onClick={() => openChat(firstMember)}>Start a message</Button> : undefined} />}</div>;
 }
 
 function ChatScreen({ me, person, messages, onBack, onChanged }: { me: Profile; person: Profile; messages: Message[]; onBack: () => void; onChanged: () => void }) {
@@ -264,7 +265,7 @@ function MemberDetail({ me, person, score, ratingCount, onBack, onMessage, onCha
 }
 
 function ProfileSetup({ user, onDone }: { user: User; onDone: () => void }) {
-  const [name, setName] = useState(String(user.user_metadata?.full_name ?? "")); const [phone, setPhone] = useState(String(user.user_metadata?.phone ?? ""));
+  const [name, setName] = useState(String(user.user_metadata?.["full_name"] ?? "")); const [phone, setPhone] = useState(String(user.user_metadata?.["phone"] ?? ""));
   async function submit(e: FormEvent) { e.preventDefault(); const { error } = await supabase.from("profiles").insert({ id: user.id, full_name: name, phone }); if (error) toast.error(error.message); else onDone(); }
   return <main className="flex min-h-screen items-center justify-center bg-background p-5"><form onSubmit={submit} className="w-full max-w-md"><div className="mb-8 text-primary"><Brand /></div><h1 className="text-3xl font-black">Complete your profile</h1><p className="mt-2 text-muted-foreground">Help your community know who they are connecting with.</p><div className="mt-7 space-y-4"><Field label="Full name"><Input required value={name} onChange={(e) => setName(e.target.value)} /></Field><Field label="Phone number"><Input required value={phone} onChange={(e) => setPhone(e.target.value)} /></Field><Button className="h-12 w-full">Continue</Button></div></form><Toaster /></main>;
 }
@@ -275,6 +276,6 @@ function ProfileView({ me, score, ratingCount, onChanged }: { me: Profile; score
   return <div className="mx-auto max-w-2xl"><p className="text-xs font-bold uppercase text-accent-foreground">Your account</p><h1 className="mt-1 text-3xl font-black">Profile</h1><div className="mt-7 flex items-center gap-5"><div className="flex h-20 w-20 items-center justify-center rounded-full bg-secondary text-3xl font-black text-primary">{me.full_name.charAt(0)}</div><div><div className="flex items-center gap-2"><h2 className="text-xl font-black">{me.full_name}</h2><BadgeCheck className="h-5 w-5 text-trust" /></div><p className="mt-1 flex items-center gap-1 text-sm"><Star className="h-4 w-4 fill-gold text-gold" /> {score ? score.toFixed(1) : "No rating yet"} · {ratingCount} ratings</p></div></div><div className="mt-8 space-y-4"><Field label="Area"><Input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Your town or neighbourhood" /></Field><Field label="About you"><Textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="A short introduction for the community" maxLength={280} /></Field><Button onClick={save}>Save profile</Button></div><div className="mt-10 border-t pt-6"><Button variant="outline" onClick={() => supabase.auth.signOut()}><LogOut /> Sign out</Button></div><InstallTip /></div>;
 }
 
-function InstallTip() { return <div className="mt-8 flex gap-4 rounded-lg bg-secondary p-5"><Install className="h-6 w-6 shrink-0 text-primary" /><div><p className="font-bold">Install Andzisa on your phone</p><p className="mt-1 text-sm leading-6 text-muted-foreground">Open your browser menu and choose “Add to Home Screen” or “Install app.” It’s free.</p></div></div>; }
+function InstallTip() { return <div className="mt-8 flex gap-4 rounded-lg bg-secondary p-5"><Download className="h-6 w-6 shrink-0 text-primary" /><div><p className="font-bold">Install Andzisa on your phone</p><p className="mt-1 text-sm leading-6 text-muted-foreground">Open your browser menu and choose “Add to Home Screen” or “Install app.” It’s free.</p></div></div>; }
 
 function Empty({ icon: Icon, title, text, action }: { icon: typeof Mail; title: string; text: string; action?: React.ReactNode }) { return <div className="mt-10 rounded-lg border border-dashed p-10 text-center"><Icon className="mx-auto h-8 w-8 text-muted-foreground" /><p className="mt-4 font-bold">{title}</p><p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">{text}</p>{action && <div className="mt-5">{action}</div>}</div>; }
