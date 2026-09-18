@@ -25,7 +25,6 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { toast } from "sonner";
 
-import faceLogo from "@/assets/andzisa-face.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -69,7 +68,7 @@ export const Route = createFileRoute("/")({
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex items-center gap-3">
-      <img src={faceLogo} alt="Andzisa face" width={1024} height={1024} className={compact ? "h-10 w-10 object-contain" : "h-16 w-16 object-contain"} />
+      <div aria-label="Andzisa logo" className={`${compact ? "h-10 w-10 text-base" : "h-16 w-16 text-2xl"} flex shrink-0 items-center justify-center rounded-lg bg-gold font-black text-primary`}>A</div>
       <div>
         <div className={compact ? "text-xl font-extrabold" : "text-3xl font-extrabold"}>Andzisa</div>
         {!compact && <div className="text-sm text-primary-foreground/75">Community Trust Network</div>}
