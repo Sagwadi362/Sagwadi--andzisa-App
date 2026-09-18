@@ -1,0 +1,6 @@
+- [x] Build secure registration and sign-in
+- [x] Add member profiles and peer ratings
+- [x] Add private messages, reports, and blocks
+- [x] Add free iPhone and Android home-screen installation
+- [x] Restore the original yellow “A” logo and remove the generated face image
+- [x] Verify phone and desktop presentation
