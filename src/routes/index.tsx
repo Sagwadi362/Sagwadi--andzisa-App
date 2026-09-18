@@ -142,7 +142,7 @@ function AuthScreen() {
         password,
         options: {
           emailRedirectTo: window.location.origin,
-          data: { full_name: fullName.trim(), phone: normalizedPhone, sa_id_confirmed: true, birth_date: cleanId.slice(0, 6) },
+          data: { full_name: fullName.trim(), phone: normalizedPhone, sa_id_confirmed: true },
         },
       });
       if (!error && data.user) {
@@ -152,7 +152,7 @@ function AuthScreen() {
       if (error) toast.error(error.message);
       else if (!data.session) toast.success("Confirmation sent. Open the link in your email to activate Andzisa.", { duration: 8000 });
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
       if (error) toast.error(error.message);
     }
     setLoading(false);
@@ -196,6 +196,7 @@ function AuthScreen() {
           <Button variant="outline" className="h-12 w-full" onClick={googleSignIn} disabled={loading}><span className="font-black text-google">G</span> Continue with Google</Button>
           <button className="mt-6 w-full text-sm font-semibold text-primary" onClick={() => setMode(mode === "signup" ? "signin" : "signup")}>{mode === "signup" ? "Already a member? Sign in" : "New to Andzisa? Join now"}</button>
           <p className="mt-8 flex items-center justify-center gap-2 text-center text-xs text-muted-foreground"><LockKeyhole className="h-3.5 w-3.5" /> Your details stay protected.</p>
+           <InstallTip />
         </div>
       </section>
       <Toaster />
@@ -319,9 +320,18 @@ function MemberDetail({ me, person, score, ratingCount, onBack, onMessage, onCha
 }
 
 function ProfileSetup({ user, onDone }: { user: User; onDone: () => void }) {
-  const [name, setName] = useState(String(user.user_metadata?.["full_name"] ?? "")); const [phone, setPhone] = useState(String(user.user_metadata?.["phone"] ?? ""));
-  async function submit(e: FormEvent) { e.preventDefault(); const { error } = await supabase.from("profiles").insert({ id: user.id, full_name: name, phone }); if (error) toast.error(error.message); else onDone(); }
-  return <main className="flex min-h-screen items-center justify-center bg-background p-5"><form onSubmit={submit} className="w-full max-w-md"><div className="mb-8 text-primary"><Brand /></div><h1 className="text-3xl font-black">Complete your profile</h1><p className="mt-2 text-muted-foreground">Help your community know who they are connecting with.</p><div className="mt-7 space-y-4"><Field label="Full name"><Input required value={name} onChange={(e) => setName(e.target.value)} /></Field><Field label="Phone number"><Input required value={phone} onChange={(e) => setPhone(e.target.value)} /></Field><Button className="h-12 w-full">Continue</Button></div></form><Toaster /></main>;
+  const [name, setName] = useState(String(user.user_metadata?.["full_name"] ?? "")); const [phone, setPhone] = useState(String(user.user_metadata?.["phone"] ?? "")); const [saId, setSaId] = useState("");
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const normalizedPhone = normalizeSouthAfricanPhone(phone);
+    if (!normalizedPhone) { toast.error("Enter a valid South African mobile number."); return; }
+    if (!validateSouthAfricanId(saId)) { toast.error("Enter a valid 13-digit South African ID number."); return; }
+    const { error: metadataError } = await supabase.auth.updateUser({ data: { full_name: name.trim(), phone: normalizedPhone, sa_id_confirmed: true } });
+    if (metadataError) { toast.error(metadataError.message); return; }
+    const { error } = await supabase.from("profiles").insert({ id: user.id, full_name: name.trim(), phone: normalizedPhone });
+    if (error) toast.error(error.message); else onDone();
+  }
+  return <main className="flex min-h-screen items-center justify-center bg-background p-5"><form onSubmit={submit} className="w-full max-w-md"><div className="mb-8 text-primary"><Brand /></div><h1 className="text-3xl font-black">Complete your profile</h1><p className="mt-2 text-muted-foreground">Confirm your South African details to join the community.</p><div className="mt-7 space-y-4"><Field label="Full name"><Input required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} /></Field><Field label="South African mobile number"><Input required type="tel" inputMode="tel" maxLength={16} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="082 123 4567" /></Field><Field label="South African ID number"><Input required inputMode="numeric" maxLength={16} value={saId} onChange={(e) => setSaId(e.target.value.replace(/[^0-9 ]/g, ""))} placeholder="13-digit ID number" /><span className="mt-1.5 block text-xs text-muted-foreground">Your full ID is checked but not stored.</span></Field><Button className="h-12 w-full">Continue</Button></div></form><Toaster /></main>;
 }
 
 function ProfileView({ me, score, ratingCount, onChanged }: { me: Profile; score: number; ratingCount: number; onChanged: () => void }) {
