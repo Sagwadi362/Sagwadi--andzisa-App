@@ -3,4 +3,4 @@
 - [x] Add private messages, reports, and blocks
 - [x] Add free iPhone and Android home-screen installation
 - [x] Restore the original yellow “A” logo and remove the generated face image
-- [ ] Verify phone and desktop presentation
+- [x] Verify phone and desktop presentation
